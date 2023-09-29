@@ -1,4 +1,5 @@
 import requests
+from openai_logger import MODEL_COST_PER_1K_TOKENS, get_openai_token_cost_for_model, standardize_model_name
 
 API_BASE_URL = "http://localhost:8000"
 
@@ -22,7 +23,18 @@ def log_open_ai_chat_response(
     customer_user_id=None,
     session_id=None,
     user_query=None,
+    prompt_tokens= None,
+    completion_tokens=None,
+    total_tokens=None
 ):
+    """
+    Track the request and response.
+    """
+    # Calculate cost
+    total_token = total_tokens if total_tokens is not None else 0
+    model_name = standardize_model_name(model)
+    cost = get_openai_token_cost_for_model(model_name, total_token)
+    
     """
     Track the request and response.
     """
@@ -33,11 +45,15 @@ def log_open_ai_chat_response(
         "completion": completion,
         "response_time": response_time,
         "context": context,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
         "environment": environment,
         "customer_id": str(customer_id),
         "customer_user_id": str(customer_user_id),
         "session_id": str(session_id),
         "user_query": str(user_query),
+        "cost": cost,
     }
     # Remove None fields from the payload
     payload = {k: v for k, v in payload.items() if v is not None}
@@ -68,7 +84,18 @@ def log_open_ai_completion_response(
     customer_user_id=None,
     session_id=None,
     user_query=None,
+    prompt_tokens= None,
+    completion_tokens=None,
+    total_tokens=None
 ):
+    """
+    Track the request and response.
+    """
+    # Calculate cost
+    total_token = total_tokens if total_tokens is not None else 0
+    model_name = standardize_model_name(model)
+    cost = get_openai_token_cost_for_model(model_name, total_token)
+    
     payload = {
         "prompt_slug": prompt_slug,
         "prompt_text": prompt,
@@ -76,11 +103,15 @@ def log_open_ai_completion_response(
         "completion": completion,
         "response_time": response_time,
         "context": context,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
         "environment": environment,
         "customer_id": str(customer_id),
         "customer_user_id": str(customer_user_id),
         "session_id": str(session_id),
         "user_query": str(user_query),
+        "cost": cost,
     }
     # Remove None fields from the payload
     payload = {k: v for k, v in payload.items() if v is not None}
@@ -152,6 +183,14 @@ def log_langchain_llm_response(
     session_id=None,
     user_query=None,
 ):
+    """
+    Track the request and response.
+    """
+    # Calculate cost
+    total_token = total_tokens if total_tokens is not None else 0
+    model_name = standardize_model_name(model)
+    cost = get_openai_token_cost_for_model(model_name, total_token)
+    
     """
     Track the request and response.
     """
