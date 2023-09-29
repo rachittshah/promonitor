@@ -19,8 +19,7 @@ from langchain.schema.messages import (
 )
 from langchain.schema.document import Document
 
-from .config import get_magik_api_key
-from .logger import log_langchain_llm_response
+from logger import log_langchain_llm_response
 
 
 class CallbackHandler(BaseCallbackHandler):
@@ -31,7 +30,6 @@ class CallbackHandler(BaseCallbackHandler):
     def __init__(
         self,
         prompt_slug: str,
-        magik_api_key: Optional[str] = None,
         environment: Optional[str] = 'production',
         session_id: Optional[str] = None,
         customer_id: Optional[str] = None,
@@ -39,17 +37,7 @@ class CallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         '''Initialize the CallbackHandler'''
-        if not magik_api_key:
-            if not get_magik_api_key():
-                raise ValueError('No Magik API key provided')
-            else:
-                magik_api_key = get_magik_api_key()
-        self.magik_api_key = magik_api_key
-        if kwargs:
-            self.global_context = kwargs
-        else:
-            self.global_context = None
-
+        self.global_context = kwargs if kwargs else {}
         self.prompt_slug = prompt_slug
         self.environment = environment
         self.session_id = session_id
@@ -89,6 +77,8 @@ class CallbackHandler(BaseCallbackHandler):
                 message_dicts = self._create_message_dicts(message)
             user_query = self._extract_user_query_from_chat_model_prompts(
                 messages)
+            invocation_params = kwargs.get('invocation_params')
+            language_model_id = invocation_params.get('model_name') if invocation_params else None
             self.runs[run_id] = {
                 'is_chat_model': True,
                 'prompt_slug': self.prompt_slug,
@@ -99,7 +89,7 @@ class CallbackHandler(BaseCallbackHandler):
                 'customer_id': self.customer_id,
                 'customer_user_id': self.customer_user_id,
                 'llm_start_time': datetime.now(timezone.utc),
-                'language_model_id': kwargs.get('invocation_params').get('model_name')
+                'language_model_id': language_model_id
             }
         except Exception as e:
             pass
@@ -115,6 +105,8 @@ class CallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> Any:
         try:
+            invocation_params = kwargs.get('invocation_params')
+            language_model_id = invocation_params.get('model_name') if invocation_params else None
             self.runs[run_id] = {
                 'is_chat_model': False,
                 'prompt_slug': self.prompt_slug,
@@ -125,7 +117,7 @@ class CallbackHandler(BaseCallbackHandler):
                 'customer_id': self.customer_id,
                 'customer_user_id': self.customer_user_id,
                 'llm_start_time': datetime.now(timezone.utc),
-                'language_model_id': kwargs.get('invocation_params').get('model_name')
+                'language_model_id': language_model_id
             }
         except Exception as e:
             pass
@@ -150,7 +142,14 @@ class CallbackHandler(BaseCallbackHandler):
                 generation = response.generations[i][0]
                 prompt_response = generation.text
                 llm_output = response.llm_output
-                token_usage = self._get_llm_usage(llm_output=llm_output)
+                if response.llm_output is not None:
+                    token_usage = self._get_llm_usage(llm_output=response.llm_output)
+                else:
+                    token_usage = {
+                        'prompt_tokens': None,
+                        'completion_tokens': None,
+                        'total_tokens': None
+                    }
 
                 run_info['prompt_response'] = prompt_response
                 run_info['prompt_tokens'] = token_usage['prompt_tokens']
@@ -252,7 +251,7 @@ class CallbackHandler(BaseCallbackHandler):
         self, messages: List[BaseMessage]
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         message_dicts = [self._convert_message_to_dict(m) for m in messages]
-        return message_dicts
+        return message_dicts, {}
 
     def _extract_user_query_from_chat_model_prompts(self, messages):
         try:
